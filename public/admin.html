@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - مطعم كارما</title>
+    <style>
+        body { font-family: Tahoma, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+        h2, h3 { text-align: center; color: #f3d08a; }
+        .section-box { background: #1c1c1c; border: 1px solid #333; padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        table { width: 100%; border-collapse: collapse; background: #1c1c1c; margin-top: 10px; border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+        th, td { padding: 12px; text-align: center; border-bottom: 1px solid #333; font-size: 14px; }
+        th { background: #1a1a1a; color: #f3d08a; border-bottom: 2px solid #d4af37; }
+        tr:hover { background: #222; }
+        .btn { background: #d32f2f; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 2px; }
+        .btn-edit { background: #4caf50; }
+        .btn:hover { opacity: 0.8; }
+        .btn-add { background: #d4af37; color: #121212; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+        .btn-add:hover { background: #c59b27; }
+        input, select, textarea { width: 100%; padding: 10px; margin: 8px 0; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; }
+        .empty-row { text-align: center; color: #777; padding: 20px; }
+    </style>
+</head>
+<body>
+
+    <h2>⚡ لوحة تحكم مطعم كارما</h2>
+
+    <div class="section-box">
+        <h3 id="formTitle">➕ إضافة صنف جديد للقائمة</h3>
+        
+        <input type="hidden" id="editProductId">
+        
+        <input type="text" id="pName" placeholder="اسم الوجبة أو الصنف (مثال: برجر فاخر)">
+        
+        <select id="pCategory">
+            <option value="مأكولات">🍔 مأكولات</option>
+            <option value="مشروبات">🍹 مشروبات</option>
+            <option value="مثلجات">🍦 مثلجات</option>
+            <option value="حلويات">🍰 حلويات</option>
+        </select>
+
+        <input type="number" id="pPrice" placeholder="السعر (بالجنيه)">
+        <input type="text" id="pImage" placeholder="رابط الصورة (نسخ رابط مباشر)">
+        
+        <button class="btn-add" id="saveProductBtn" onclick="saveProduct()">حفظ وإضافة الصنف</button>
+        <button class="btn-add" id="cancelEditBtn" style="background:#555; color:#fff; display:none;" onclick="cancelEdit()">إلغاء التعديل</button>
+    </div>
+
+    <div class="section-box">
+        <h3 id="aboutFormTitle">✨ إضافة صورة ووصف لقسم "حول كارما"</h3>
+        
+        <input type="hidden" id="editAboutId">
+        <input type="text" id="aboutImage" placeholder="رابط صورة مطعم كارما">
+        <textarea id="aboutDesc" placeholder="وصف الصورة أو إنجازات المطعم..." rows="2"></textarea>
+        
+        <button class="btn-add" id="saveAboutBtn" onclick="saveAboutItem()">حفظ صورة "حول كارما"</button>
+        <button class="btn-add" id="cancelAboutEditBtn" style="background:#555; color:#fff; display:none;" onclick="cancelAboutEdit()">إلغاء التعديل</button>
+        
+        <table style="margin-top: 15px;">
+            <thead>
+                <tr>
+                    <th>الصورة</th>
+                    <th>الوصف</th>
+                    <th>إجراءات</th>
+                </tr>
+            </thead>
+            <tbody id="admin-about-table">
+                <tr><td colspan="3" class="empty-row">جاري التحميل...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section-box">
+        <h3>📋 طلبات الزبائن الواردة</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>رقم الطلب</th>
+                    <th>العميل ورقم الهاتف</th>
+                    <th>العنوان</th>
+                    <th>الطلبات</th>
+                    <th>الإجمالي</th>
+                    <th>الحالة</th>
+                    <th>إجراءات</th>
+                </tr>
+            </thead>
+            <tbody id="admin-orders-table">
+                <tr><td colspan="7" class="empty-row">جاري تحميل الطلبات...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section-box">
+        <h3>🍔 الأصناف الحالية في القائمة</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>الصورة</th>
+                    <th>اسم الصنف</th>
+                    <th>الفئة</th>
+                    <th>السعر</th>
+                    <th>إجراءات</th>
+                </tr>
+            </thead>
+            <tbody id="admin-products-table">
+                <tr><td colspan="5" class="empty-row">جاري تحميل الأصناف...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let adminProductsList = [];
+        let adminAboutList = [];
+
+        // ---------------- إدارة الطلبات ---------------- //
+        async function loadAdminOrders() {
+            try {
+                const res = await fetch('/api/orders');
+                const orders = await res.json();
+                const tbody = document.getElementById('admin-orders-table');
+                tbody.innerHTML = '';
+
+                if (orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">لا توجد طلبات جديدة حالياً</td></tr>';
+                    return;
+                }
+
+                orders.forEach(o => {
+                    let itemsStr = o.items ? o.items.map(i => `${i.name} (${i.price} ج)`).join('، ') : '';
+                    let displayId = o._id ? o._id.slice(-4) : '---';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>#${displayId}</td>
+                            <td>
+                                <b style="color: #fff;">${o.customerName || 'بدون اسم'}</b><br>
+                                <small style="color: #f3d08a;">📞 ${o.customerPhone || 'بدون هاتف'}</small>
+                            </td>
+                            <td style="color: #ccc;">${o.address || 'بدون عنوان'}</td>
+                            <td><small style="color: #aaa;">${itemsStr}</small></td>
+                            <td><b style="color: #f3d08a;">${o.totalPrice || 0} ج.س</b></td>
+                            <td>
+                                <select onchange="updateOrderStatus('${o._id}', this.value)" style="width: auto;">
+                                    <option value="جديد" ${o.status === 'جديد' ? 'selected' : ''}>جديد</option>
+                                    <option value="قيد التحضير" ${o.status === 'قيد التحضير' ? 'selected' : ''}>قيد التحضير</option>
+                                    <option value="تم التوصيل" ${o.status === 'تم التوصيل' ? 'selected' : ''}>تم التوصيل</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button class="btn" onclick="deleteOrder('${o._id}')">حذف</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function updateOrderStatus(id, status) {
+            try { await fetch(`/api/orders/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); } catch (e) { console.error(e); }
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm('هل أنت متأكد من حذف هذا الطلب؟')) return;
+            try { await fetch(`/api/orders/${id}`, { method: 'DELETE' }); loadAdminOrders(); } catch (e) { console.error(e); }
+        }
+
+        // ---------------- إدارة الأصناف (المنتجات) ---------------- //
+        async function loadAdminProducts() {
+            try {
+                const res = await fetch('/api/products');
+                adminProductsList = await res.json();
+                const tbody = document.getElementById('admin-products-table');
+                tbody.innerHTML = '';
+
+                if (adminProductsList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">لا توجد أصناف مضافة حالياً</td></tr>';
+                    return;
+                }
+
+                adminProductsList.forEach(p => {
+                    let catName = p.category || 'مأكولات';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><img src="${p.image}" width="50" height="40" style="object-fit:cover; border-radius:4px;"></td>
+                            <td style="color: #fff; font-weight:bold;">${p.name}</td>
+                            <td style="color: #ccc;">${catName}</td>
+                            <td style="color: #f3d08a;">${p.price} ج.س</td>
+                            <td>
+                                <button class="btn btn-edit" onclick="editProduct('${p._id}')">تعديل</button>
+                                <button class="btn" onclick="deleteProduct('${p._id}')">حذف</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function saveProduct() {
+            const id = document.getElementById('editProductId').value;
+            const name = document.getElementById('pName').value;
+            const category = document.getElementById('pCategory').value;
+            const price = document.getElementById('pPrice').value;
+            const image = document.getElementById('pImage').value;
+
+            if (!name || !price || !image) {
+                alert('الرجاء إكمال كافة بيانات الصنف (الاسم، السعر، ورابط الصورة)');
+                return;
+            }
+
+            const productData = { name, category, price, image };
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/products/${id}` : '/api/products';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(productData)
+                });
+
+                if (res.ok) {
+                    alert(id ? 'تم تحديث بيانات الصنف بنجاح!' : 'تم إضافة الصنف بنجاح!');
+                    cancelEdit();
+                    loadAdminProducts();
+                } else { alert('فشل حفظ الصنف، يرجى المحاولة مرة أخرى.'); }
+            } catch (e) { console.error(e); }
+        }
+
+        function editProduct(id) {
+            const product = adminProductsList.find(p => p._id === id);
+            if(product) {
+                document.getElementById('editProductId').value = product._id;
+                document.getElementById('pName').value = product.name;
+                document.getElementById('pCategory').value = product.category || 'مأكولات';
+                document.getElementById('pPrice').value = product.price;
+                document.getElementById('pImage').value = product.image;
+                
+                document.getElementById('formTitle').innerText = '✏️ تعديل بيانات الصنف';
+                document.getElementById('saveProductBtn').innerText = 'تحديث بيانات الصنف';
+                document.getElementById('cancelEditBtn').style.display = 'block';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function cancelEdit() {
+            document.getElementById('editProductId').value = '';
+            document.getElementById('pName').value = '';
+            document.getElementById('pCategory').value = 'مأكولات';
+            document.getElementById('pPrice').value = '';
+            document.getElementById('pImage').value = '';
+            document.getElementById('formTitle').innerText = '➕ إضافة صنف جديد للقائمة';
+            document.getElementById('saveProductBtn').innerText = 'حفظ وإضافة الصنف';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm('هل أنت متأكد من حذف هذا الصنف من القائمة نهائياً؟')) return;
+            try {
+                const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+                if (res.ok) loadAdminProducts();
+            } catch (e) { console.error(e); }
+        }
+
+        // ---------------- إدارة صور "حول كارما" ---------------- //
+        async function loadAdminAbout() {
+            try {
+                const res = await fetch('/api/about');
+                adminAboutList = await res.json();
+                const tbody = document.getElementById('admin-about-table');
+                tbody.innerHTML = '';
+
+                if (adminAboutList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="empty-row">لا توجد صور مضافة لقسم حول كارما</td></tr>';
+                    return;
+                }
+
+                adminAboutList.forEach(item => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><img src="${item.image}" width="60" height="40" style="object-fit:cover; border-radius:4px;"></td>
+                            <td style="color: #ccc;">${item.description || '---'}</td>
+                            <td>
+                                <button class="btn btn-edit" onclick="editAboutItem('${item._id}')">تعديل</button>
+                                <button class="btn" onclick="deleteAboutItem('${item._id}')">حذف</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function saveAboutItem() {
+            const id = document.getElementById('editAboutId').value;
+            const image = document.getElementById('aboutImage').value;
+            const description = document.getElementById('aboutDesc').value;
+
+            if (!image) {
+                alert('الرجاء إدخال رابط الصورة على الأقل!');
+                return;
+            }
+
+            const aboutData = { image, description };
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/about/${id}` : '/api/about';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(aboutData)
+                });
+
+                if (res.ok) {
+                    alert(id ? 'تم تحديث الصورة بنجاح!' : 'تم إضافة الصورة بنجاح!');
+                    cancelAboutEdit();
+                    loadAdminAbout();
+                } else { alert('فشل الحفظ، يرجى المحاولة لاحقاً.'); }
+            } catch (e) { console.error(e); }
+        }
+
+        function editAboutItem(id) {
+            const item = adminAboutList.find(a => a._id === id);
+            if (item) {
+                document.getElementById('editAboutId').value = item._id;
+                document.getElementById('aboutImage').value = item.image;
+                document.getElementById('aboutDesc').value = item.description || '';
+
+                document.getElementById('aboutFormTitle').innerText = '✏️ تعديل صورة "حول كارما"';
+                document.getElementById('saveAboutBtn').innerText = 'تحديث الصورة';
+                document.getElementById('cancelAboutEditBtn').style.display = 'block';
+            }
+        }
+
+        function cancelAboutEdit() {
+            document.getElementById('editAboutId').value = '';
+            document.getElementById('aboutImage').value = '';
+            document.getElementById('aboutDesc').value = '';
+
+            document.getElementById('aboutFormTitle').innerText = '✨ إضافة صورة ووصف لقسم "حول كارما"';
+            document.getElementById('saveAboutBtn').innerText = 'حفظ صورة "حول كارما"';
+            document.getElementById('cancelAboutEditBtn').style.display = 'none';
+        }
+
+        async function deleteAboutItem(id) {
+            if (!confirm('هل أنت متأكد من حذف هذه الصورة؟')) return;
+            try {
+                const res = await fetch(`/api/about/${id}`, { method: 'DELETE' });
+                if (res.ok) loadAdminAbout();
+            } catch (e) { console.error(e); }
+        }
+
+        // التشغيل التلقائي
+        loadAdminOrders();
+        loadAdminProducts();
+        loadAdminAbout();
+        setInterval(loadAdminOrders, 5000);
+    </script>
+</body>
+</html>
